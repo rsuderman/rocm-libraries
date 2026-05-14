@@ -583,7 +583,15 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetWorkspaceSizeFromExecutionContext(
 
   // This should never happen. When it does we'll at least get a sane error
   // message.
-  std::optional<size_t> maybeSize = executionContext->graph.getWorkspaceSize();
+  auto maybeSizeOrError = executionContext->graph.getWorkspaceSizeOrError();
+  if (fusilli::isError(maybeSizeOrError)) {
+    return hipdnn_plugin_sdk::PluginLastErrorManager::setLastError(
+        HIPDNN_PLUGIN_STATUS_INTERNAL_ERROR,
+        "Failed to get workspace size from execution context: " +
+            static_cast<fusilli::ErrorObject>(maybeSizeOrError).getMessage());
+  }
+
+  std::optional<size_t> maybeSize = *maybeSizeOrError;
   if (!maybeSize.has_value()) {
     return hipdnn_plugin_sdk::PluginLastErrorManager::setLastError(
         HIPDNN_PLUGIN_STATUS_INTERNAL_ERROR,
@@ -662,8 +670,17 @@ hipdnnPluginStatus_t hipdnnEnginePluginExecuteOpGraph(
 
   // Import workspace buffer if the compiled graph requires transient storage.
   std::shared_ptr<fusilli::Buffer> workspace = nullptr;
-  std::optional<size_t> maybeWorkspaceSize =
-      executionContext->graph.getWorkspaceSize();
+  auto maybeWorkspaceSizeOrError =
+      executionContext->graph.getWorkspaceSizeOrError();
+  if (fusilli::isError(maybeWorkspaceSizeOrError)) {
+    return hipdnn_plugin_sdk::PluginLastErrorManager::setLastError(
+        HIPDNN_PLUGIN_STATUS_INTERNAL_ERROR,
+        "Failed to get workspace size from execution context: " +
+            static_cast<fusilli::ErrorObject>(maybeWorkspaceSizeOrError)
+                .getMessage());
+  }
+
+  std::optional<size_t> maybeWorkspaceSize = *maybeWorkspaceSizeOrError;
   if (!maybeWorkspaceSize.has_value()) {
     return hipdnn_plugin_sdk::PluginLastErrorManager::setLastError(
         HIPDNN_PLUGIN_STATUS_INTERNAL_ERROR,
